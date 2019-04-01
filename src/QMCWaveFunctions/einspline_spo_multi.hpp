@@ -47,6 +47,8 @@ struct einspline_spo_multi : public SPOSet
   typedef Kokkos::TeamPolicy<EvaluateVGHTag> policy_vgh_parallel_t;
   typedef Kokkos::TeamPolicy<Kokkos::Serial, EvaluateVTag> policy_v_serial_t;
   typedef Kokkos::TeamPolicy<EvaluateVTag> policy_v_parallel_t;
+
+  //These are for batched walker moves.  
   typedef Kokkos::TeamPolicy<EvaluateVMultiTag> policy_v_multi_parallel_t;
   typedef Kokkos::TeamPolicy<EvaluateVGHMultiTag> policy_vgh_multi_parallel_t;
 
@@ -54,6 +56,8 @@ struct einspline_spo_multi : public SPOSet
   typedef typename policy_vgh_parallel_t::member_type team_vgh_parallel_t;
   typedef typename policy_v_serial_t::member_type team_v_serial_t;
   typedef typename policy_v_parallel_t::member_type team_v_parallel_t;
+
+  //Convenient typedef for batched walker moves.  
   typedef typename policy_v_multi_parallel_t::member_type team_v_multi_parallel_t;
   typedef typename policy_vgh_multi_parallel_t::member_type team_vgh_multi_parallel_t;
   
@@ -284,7 +288,7 @@ struct einspline_spo_multi : public SPOSet
     compute_engine.copy_A44();
     tmp_walker_pos=Rw;
     is_copy = true;
-    //Kokkos::parallel_for(policy_v_multi_parallel_t(nW,1,32),*this);
+    Kokkos::parallel_for(policy_vgh_multi_parallel_t(nW,1,32),*this);
     is_copy = false;
     
   }
@@ -297,7 +301,6 @@ struct einspline_spo_multi : public SPOSet
     PosType r_raw(tmp_walker_pos(nw,0),tmp_walker_pos(nw,1),tmp_walker_pos(nw,2));
 
     auto u                  = Lattice.toUnit_floor(r_raw);
-    //printf("walker %d (%f,%f,%f) -> (%f,%f,%f)\n",nw,r_raw(0),r_raw(1),r_raw(2), u(0), u(1), u(2));
     einsplines(block).coefs = einsplines(block).coefs_view.data();
     compute_engine.evaluate_v(team,
                               &einsplines(block),
@@ -305,6 +308,26 @@ struct einspline_spo_multi : public SPOSet
                               u[1],
                               u[2],
                               psi(block,nw).data(),
+                              psi(block,nw).extent(0));
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const EvaluateVGHMultiTag&, const team_vgh_multi_parallel_t& team) const
+  {
+    int block            = 0;
+    int nw               = team.league_rank();
+    PosType r_raw(tmp_walker_pos(nw,0),tmp_walker_pos(nw,1),tmp_walker_pos(nw,2));
+
+    auto u                  = Lattice.toUnit_floor(r_raw);
+    einsplines(block).coefs = einsplines(block).coefs_view.data();
+    compute_engine.evaluate_vgh(team,
+                              &einsplines(block),
+                              u[0],
+                              u[1],
+                              u[2],
+                              psi(block,nw).data(),
+                              grad(block,nw).data(),
+                              hess(block,nw).data(),
                               psi(block,nw).extent(0));
    
   }
