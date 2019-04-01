@@ -94,7 +94,7 @@ int main(int argc, char** argv)
     int opt;
     while (optind < argc)
     {
-      if ((opt = getopt(argc, argv, "hvVa:c:f:g:m:n:r:s:")) != -1)
+      if ((opt = getopt(argc, argv, "hvVa:c:w:f:g:m:n:r:s:")) != -1)
       {
         switch (opt)
         {
@@ -182,6 +182,7 @@ int main(int argc, char** argv)
       const double SPO_coeff_size_MB = SPO_coeff_size * 1.0 / 1024 / 1024;
 
       app_summary() << "Number of orbitals/splines = " << norb << endl
+                    << "Number of walkers          = " << nW << endl
                     << "Tile size = " << tileSize << endl
                     << "Number of tiles = " << nTiles << endl
                     << "Rmax = " << Rmax << endl;
@@ -221,19 +222,25 @@ int main(int argc, char** argv)
       // create generator within the thread
       RandomGenerator<RealType> random_th(MakeSeed(team_id, np));
 
-      ParticleSet els;
-      build_els(els, ions, random_th);
-      els.update();
+      //We are working with batches of walkers.  Here are the walker
+      //"coordinates".
+      std::vector<ParticleSet> el_list(nW);
+      for(int nw=0; nw<nW; nw++)
+      {
+        ParticleSet els;
+        build_els(el_list[nw], ions, random_th);
+        el_list[nw].update();
+      }
 
       const int nions = ions.getTotalNum();
-      const int nels  = els.getTotalNum();
+      const int nels  = el_list[0].getTotalNum();
       const int nels3 = 3 * nels;
 
       // create pseudopp
       NonLocalPP<OHMMS_PRECISION> ecp(random_th);
       // create spo per thread
-      spo_type spo(spo_main, team_size, member_id);
-      spo_ref_type spo_ref(spo_ref_main, team_size, member_id);
+      //spo_type spo(spo_main, team_size, member_id);
+      //spo_ref_type spo_ref(spo_ref_main, team_size, member_id);
 
       // use teams
       // if(team_size>1 && team_size>=nTiles ) spo.set_range(team_size,ip%team_size);
@@ -259,37 +266,72 @@ int main(int argc, char** argv)
         random_th.generate_uniform(ur.data(), nels);
 
         // VMC
-        for (int iel = 0; iel < nels; ++iel)
+        //Serial propose the move for all walkers.
+        for(int nw = 0; nw < nW; nw++)
         {
-          PosType pos = els.R[iel] + sqrttau * delta[iel];
-          spo.evaluate_vgh(pos);
-          spo_ref.evaluate_vgh(pos);
-          // accumulate error
-          for (int ib = 0; ib < spo.nBlocks; ib++)
-            for (int n = 0; n < spo.nSplinesPerBlock; n++)
-            { /*
-              // value
-              evalVGH_v_err += std::fabs(spo.psi[ib][n] - spo_ref.psi[ib][n]);
-              // grad
-              evalVGH_g_err += std::fabs(spo.grad[ib](n, 0) - spo_ref.grad[ib](n, 0));
-              evalVGH_g_err += std::fabs(spo.grad[ib](n, 1) - spo_ref.grad[ib](n, 1));
-              evalVGH_g_err += std::fabs(spo.grad[ib](n, 2) - spo_ref.grad[ib](n, 2));
-              // hess
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 0) - spo_ref.hess[ib](n, 0));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 1) - spo_ref.hess[ib](n, 1));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 2) - spo_ref.hess[ib](n, 2));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 3) - spo_ref.hess[ib](n, 3));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 4) - spo_ref.hess[ib](n, 4));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 5) - spo_ref.hess[ib](n, 5)); */
-            }
-          if (ur[iel] > accept)
-          {
-            els.R[iel] = pos;
-            my_accepted++;
-          }
+          random_th.generate_normal(&delta[0][0], nels3);
+          //delta has been generated.  Now to make the new R for this walker.
+          for(int iel=0; iel<nels; iel++)
+            el_list[nw].R[iel]+=sqrttau*delta[iel];
         }
-
+        //Now we're going to build a coordinate view for all the walkers.
+        //Offload to device can happen here. 
+        Kokkos::View<double**[3]> Rv("R_view",nW,nels);
+        for(int nw=0; nw<nW; nw++)
+          for(int iel=0; iel<nels; iel++)
+            for(int xindex=0; xindex<OHMMS_DIM; xindex++)
+              Rv(nw,iel,xindex) = el_list[nw].R[iel][xindex];
+   
+        //=============== STAGE 1 ===================
+        //========  Batched evaluation! ============= 
+        //===========================================
+        //
+        // We will iterate over electrons.  
+        //
+        
+	for (int iel = 0; iel < nels; ++iel)
+	{
+	  const Kokkos::View<OHMMS_PRECISION*[3]> eslice = Kokkos::subview(Rv,Kokkos::ALL(),iel,Kokkos::ALL());
+	  spo_main.evaluate_v_multi(eslice); 
+	  for (int nw = 0; nw < nW; nw++)
+	  {
+	    //spo_main.evaluate_vgh(pos);
+            PosType pos = el_list[nw].R[iel]; 
+	    spo_ref_main.evaluate_vgh(pos);
+	    // accumulate error
+	    for (int ib = 0; ib < spo_main.nBlocks; ib++)
+	      for (int n = 0; n < spo_ref_main.nSplinesPerBlock; n++)
+	      { 
+		// value
+		// psi(0,nw)[ns]
+		evalVGH_v_err += std::fabs(spo_main.psi(ib,nw)[n] - spo_ref_main.psi(ib)[n]);
+       //         printf(" (iel,nw,ib,n)=(%d,%d,%d,%d) newv=%f oldv=%f\n",iel,nw,ib,n,spo_main.psi(ib,nw)[n],spo_ref_main.psi(ib)[n]);
+		/*
+                // grad
+		evalVGH_g_err += std::fabs(spo.grad[ib](n, 0) - spo_ref.grad[ib](n, 0));
+		evalVGH_g_err += std::fabs(spo.grad[ib](n, 1) - spo_ref.grad[ib](n, 1));
+		evalVGH_g_err += std::fabs(spo.grad[ib](n, 2) - spo_ref.grad[ib](n, 2));
+		// hess
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 0) - spo_ref.hess[ib](n, 0));
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 1) - spo_ref.hess[ib](n, 1));
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 2) - spo_ref.hess[ib](n, 2));
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 3) - spo_ref.hess[ib](n, 3));
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 4) - spo_ref.hess[ib](n, 4));
+		evalVGH_h_err += std::fabs(spo.hess[ib](n, 5) - spo_ref.hess[ib](n, 5)); */
+	      }
+	    if (ur[iel] > accept)
+	    {
+	      el_list[nw].R[iel] = pos;
+	      my_accepted++;
+	    }
+	  }
+        }
         random_th.generate_uniform(ur.data(), nels);
+        
+        //Commenting out pseudopotential evaluation for now...
+        //
+        
+        /*
         ecp.randomize(rOnSphere); // pick random sphere
         for (int iat = 0, kat = 0; iat < nions; ++iat)
         {
@@ -303,8 +345,8 @@ int main(int argc, char** argv)
             for (int k = 0; k < nknots; k++)
             {
               PosType pos = centerP + r * rOnSphere[k];
-              spo.evaluate_v(pos);
-              spo_ref.evaluate_v(pos);
+              spo_main.evaluate_v(pos);
+              spo_ref_main.evaluate_v(pos);
               // accumulate error
               //for (int ib = 0; ib < spo.nBlocks; ib++)
               //  for (int n = 0; n < spo.nSplinesPerBlock; n++)
@@ -312,7 +354,7 @@ int main(int argc, char** argv)
             }
           } // els
         }   // ions
-
+          */
       } // steps.
 
       ratio += RealType(my_accepted) / RealType(nels * nsteps);
