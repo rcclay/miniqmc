@@ -25,6 +25,7 @@
 #include <Utilities/RandomGenerator.h>
 #include <Input/Input.hpp>
 #include <QMCWaveFunctions/einspline_spo.hpp>
+#include <QMCWaveFunctions/einspline_spo_multi.hpp>
 #include <QMCWaveFunctions/einspline_spo_ref.hpp>
 #include <Utilities/qmcpack_version.h>
 #include <getopt.h>
@@ -43,6 +44,7 @@ void print_help()
   app_summary() << "  -h  print help and exit" << '\n';
   app_summary() << "  -m  meshfactor                     default: 1.0" << '\n';
   app_summary() << "  -n  number of MC steps             default: 5" << '\n';
+  app_summary() << "  -w  number of walkers              default: 1" << '\n';
   app_summary() << "  -r  set the Rmax.                  default: 1.7" << '\n';
   app_summary() << "  -s  set the random seed.           default: 11" << '\n';
   app_summary() << "  -v  verbose output" << '\n';
@@ -81,7 +83,9 @@ int main(int argc, char** argv)
     int team_size = 1;
 
     bool verbose = false;
-
+    
+    //number of walkers.
+    int nW = 1;
     if (!comm.root())
     {
       outputManager.shutOff();
@@ -116,6 +120,9 @@ int main(int argc, char** argv)
         break;
         case 'n':
           nsteps = atoi(optarg);
+          break;
+        case 'w':
+          nW = atoi(optarg);
           break;
         case 'r': // rmax
           Rmax = atof(optarg);
@@ -155,7 +162,7 @@ int main(int argc, char** argv)
 
     OHMMS_PRECISION ratio = 0.0;
 
-    using spo_type = einspline_spo<OHMMS_PRECISION>;
+    using spo_type = einspline_spo_multi<OHMMS_PRECISION>;
     spo_type spo_main;
     using spo_ref_type = miniqmcreference::einspline_spo_ref<OHMMS_PRECISION>;
     spo_ref_type spo_ref_main;
@@ -187,7 +194,7 @@ int main(int argc, char** argv)
       app_summary() << "\nSPO coefficients size = " << SPO_coeff_size << " bytes ("
                     << SPO_coeff_size_MB << " MB)" << endl;
 
-      spo_main.set(nx, ny, nz, norb, nTiles);
+      spo_main.set(nW,nx, ny, nz, norb, nTiles);
       spo_main.Lattice.set(lattice_b);
       spo_ref_main.set(nx, ny, nz, norb, nTiles);
       spo_ref_main.Lattice.set(lattice_b);
@@ -260,7 +267,7 @@ int main(int argc, char** argv)
           // accumulate error
           for (int ib = 0; ib < spo.nBlocks; ib++)
             for (int n = 0; n < spo.nSplinesPerBlock; n++)
-            {
+            { /*
               // value
               evalVGH_v_err += std::fabs(spo.psi[ib][n] - spo_ref.psi[ib][n]);
               // grad
@@ -273,7 +280,7 @@ int main(int argc, char** argv)
               evalVGH_h_err += std::fabs(spo.hess[ib](n, 2) - spo_ref.hess[ib](n, 2));
               evalVGH_h_err += std::fabs(spo.hess[ib](n, 3) - spo_ref.hess[ib](n, 3));
               evalVGH_h_err += std::fabs(spo.hess[ib](n, 4) - spo_ref.hess[ib](n, 4));
-              evalVGH_h_err += std::fabs(spo.hess[ib](n, 5) - spo_ref.hess[ib](n, 5));
+              evalVGH_h_err += std::fabs(spo.hess[ib](n, 5) - spo_ref.hess[ib](n, 5)); */
             }
           if (ur[iel] > accept)
           {
@@ -299,9 +306,9 @@ int main(int argc, char** argv)
               spo.evaluate_v(pos);
               spo_ref.evaluate_v(pos);
               // accumulate error
-              for (int ib = 0; ib < spo.nBlocks; ib++)
-                for (int n = 0; n < spo.nSplinesPerBlock; n++)
-                  evalV_v_err += std::fabs(spo.psi[ib][n] - spo_ref.psi[ib][n]);
+              //for (int ib = 0; ib < spo.nBlocks; ib++)
+              //  for (int n = 0; n < spo.nSplinesPerBlock; n++)
+              //    evalV_v_err += std::fabs(spo.psi[ib][n] - spo_ref.psi[ib][n]);
             }
           } // els
         }   // ions
