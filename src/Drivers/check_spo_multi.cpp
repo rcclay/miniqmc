@@ -292,7 +292,7 @@ int main(int argc, char** argv)
 	for (int iel = 0; iel < nels; ++iel)
 	{
 	  const Kokkos::View<OHMMS_PRECISION*[3]> eslice = Kokkos::subview(Rv,Kokkos::ALL(),iel,Kokkos::ALL());
-	  spo_main.evaluate_v_multi(eslice); 
+	  spo_main.evaluate_vgh_multi(eslice); 
 	  for (int nw = 0; nw < nW; nw++)
 	  {
 	    //spo_main.evaluate_vgh(pos);
@@ -303,21 +303,18 @@ int main(int argc, char** argv)
 	      for (int n = 0; n < spo_ref_main.nSplinesPerBlock; n++)
 	      { 
 		// value
-		// psi(0,nw)[ns]
 		evalVGH_v_err += std::fabs(spo_main.psi(ib,nw)[n] - spo_ref_main.psi(ib)[n]);
-       //         printf(" (iel,nw,ib,n)=(%d,%d,%d,%d) newv=%f oldv=%f\n",iel,nw,ib,n,spo_main.psi(ib,nw)[n],spo_ref_main.psi(ib)[n]);
-		/*
                 // grad
-		evalVGH_g_err += std::fabs(spo.grad[ib](n, 0) - spo_ref.grad[ib](n, 0));
-		evalVGH_g_err += std::fabs(spo.grad[ib](n, 1) - spo_ref.grad[ib](n, 1));
-		evalVGH_g_err += std::fabs(spo.grad[ib](n, 2) - spo_ref.grad[ib](n, 2));
+		evalVGH_g_err += std::fabs(spo_main.grad(ib,nw)(n, 0) - spo_ref_main.grad(ib)(n, 0));
+		evalVGH_g_err += std::fabs(spo_main.grad(ib,nw)(n, 1) - spo_ref_main.grad(ib)(n, 1));
+		evalVGH_g_err += std::fabs(spo_main.grad(ib,nw)(n, 2) - spo_ref_main.grad(ib)(n, 2));
 		// hess
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 0) - spo_ref.hess[ib](n, 0));
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 1) - spo_ref.hess[ib](n, 1));
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 2) - spo_ref.hess[ib](n, 2));
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 3) - spo_ref.hess[ib](n, 3));
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 4) - spo_ref.hess[ib](n, 4));
-		evalVGH_h_err += std::fabs(spo.hess[ib](n, 5) - spo_ref.hess[ib](n, 5)); */
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 0) - spo_ref_main.hess(ib)(n, 0));
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 1) - spo_ref_main.hess(ib)(n, 1));
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 2) - spo_ref_main.hess(ib)(n, 2));
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 3) - spo_ref_main.hess(ib)(n, 3));
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 4) - spo_ref_main.hess(ib)(n, 4));
+		evalVGH_h_err += std::fabs(spo_main.hess(ib,nw)(n, 5) - spo_ref_main.hess(ib)(n, 5)); 
 	      }
 	    if (ur[iel] > accept)
 	    {

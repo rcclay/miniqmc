@@ -278,6 +278,16 @@ struct einspline_spo_multi : public SPOSet
     is_copy = false;
     
   }
+  inline void evaluate_vgh_multi(const Kokkos::View<double*[3]> Rw)
+  {
+    ScopedTimer local_timer(timer);
+    compute_engine.copy_A44();
+    tmp_walker_pos=Rw;
+    is_copy = true;
+    //Kokkos::parallel_for(policy_v_multi_parallel_t(nW,1,32),*this);
+    is_copy = false;
+    
+  }
 
   KOKKOS_INLINE_FUNCTION
   void operator()(const EvaluateVMultiTag&, const team_v_multi_parallel_t& team) const

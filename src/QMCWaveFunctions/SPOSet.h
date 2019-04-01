@@ -44,6 +44,8 @@ public:
   virtual void evaluate_vgh(const PosType& p) = 0;
   
   virtual void evaluate_v_multi(const Kokkos::View<ValueType*[3]> R){};
+  virtual void evaluate_vgl_multi(const Kokkos::View<ValueType*[3]> R){};
+  virtual void evaluate_vgh_multi(const Kokkos::View<ValueType*[3]> R){};
   /// operates on multiple walkers
   virtual void
       multi_evaluate_v(const std::vector<SPOSet*>& spo_list, const std::vector<PosType>& pos_list)
