@@ -38,16 +38,26 @@ struct einspline_spo_multi : public SPOSet
   {};
   struct EvaluateVTag
   {};
+  struct EvaluateVMultiTag
+  {};
+  struct EvaluateVGHMultiTag
+  {};
+
   typedef Kokkos::TeamPolicy<Kokkos::Serial, EvaluateVGHTag> policy_vgh_serial_t;
   typedef Kokkos::TeamPolicy<EvaluateVGHTag> policy_vgh_parallel_t;
   typedef Kokkos::TeamPolicy<Kokkos::Serial, EvaluateVTag> policy_v_serial_t;
   typedef Kokkos::TeamPolicy<EvaluateVTag> policy_v_parallel_t;
+  typedef Kokkos::TeamPolicy<EvaluateVMultiTag> policy_v_multi_parallel_t;
+  typedef Kokkos::TeamPolicy<EvaluateVGHMultiTag> policy_vgh_multi_parallel_t;
 
   typedef typename policy_vgh_serial_t::member_type team_vgh_serial_t;
   typedef typename policy_vgh_parallel_t::member_type team_vgh_parallel_t;
   typedef typename policy_v_serial_t::member_type team_v_serial_t;
   typedef typename policy_v_parallel_t::member_type team_v_parallel_t;
-
+  typedef typename policy_v_multi_parallel_t::member_type team_v_multi_parallel_t;
+  typedef typename policy_vgh_multi_parallel_t::member_type team_vgh_multi_parallel_t;
+  
+  
 
   // Whether to use Serial evaluation or not
   int nSplinesSerialThreshold_V;
@@ -56,10 +66,10 @@ struct einspline_spo_multi : public SPOSet
 
   /// define the einsplie data object type
   using spline_type     = typename bspline_traits<T, 3>::SplineType;
-  using vContainer_type = Kokkos::View<T**>; //First index is usual spline index.
+  using vContainer_type = Kokkos::View<T*>; //First index is usual spline index.
                                              //Second is the walker index for multiwalker moves.
-  using gContainer_type = Kokkos::View<T ** [3], Kokkos::LayoutLeft>;
-  using hContainer_type = Kokkos::View<T ** [6], Kokkos::LayoutLeft>;
+  using gContainer_type = Kokkos::View<T * [3], Kokkos::LayoutLeft>;
+  using hContainer_type = Kokkos::View<T * [6], Kokkos::LayoutLeft>;
   using lattice_type    = CrystalLattice<T, 3>;
 
   /// number of simultaneous coordinates to evaluate over.  For batched walker eval.
@@ -86,12 +96,14 @@ struct einspline_spo_multi : public SPOSet
   MultiBspline<T> compute_engine;
 
   Kokkos::View<spline_type*> einsplines;
-  Kokkos::View<vContainer_type*> psi;
-  Kokkos::View<gContainer_type*> grad;
-  Kokkos::View<hContainer_type*> hess;
+  Kokkos::View<vContainer_type**> psi;
+  Kokkos::View<gContainer_type**> grad;
+  Kokkos::View<hContainer_type**> hess;
 
   //Temporary position for communicating within Kokkos parallel sections.
   PosType tmp_pos;
+   
+  Kokkos::View<ValueType*[3]> tmp_walker_pos;
   /// Timer
   NewTimer* timer;
 
@@ -157,13 +169,16 @@ struct einspline_spo_multi : public SPOSet
       einsplines = Kokkos::View<spline_type*>();
       for (int i = 0; i < psi.extent(0); i++)
       {
-        psi(i)  = vContainer_type();
-        grad(i) = gContainer_type();
-        hess(i) = hContainer_type();
+        for(int j=0; j< psi.extent(1); j++)
+        {  
+          psi(i,j)  = vContainer_type();
+          grad(i,j) = gContainer_type();
+          hess(i,j) = hContainer_type();
+        }
       }
-      psi  = Kokkos::View<vContainer_type*>();
-      grad = Kokkos::View<gContainer_type*>();
-      hess = Kokkos::View<hContainer_type*>();
+      psi  = Kokkos::View<vContainer_type**>();
+      grad = Kokkos::View<gContainer_type**>();
+      hess = Kokkos::View<hContainer_type**>();
     }
     //    for (int i = 0; i < nBlocks; ++i)
     //      myAllocator.destroy(einsplines(i));
@@ -176,31 +191,31 @@ struct einspline_spo_multi : public SPOSet
     //    grad.resize(nBlocks);
     //    hess.resize(nBlocks);
 
-    psi  = Kokkos::View<vContainer_type*>("Psi", nBlocks);
-    grad = Kokkos::View<gContainer_type*>("Grad", nBlocks);
-    hess = Kokkos::View<hContainer_type*>("Hess", nBlocks);
+    psi  = Kokkos::View<vContainer_type**>("Psi",  nBlocks, nW);
+    grad = Kokkos::View<gContainer_type**>("Grad", nBlocks, nW);
+    hess = Kokkos::View<hContainer_type**>("Hess", nBlocks, nW);
 
     for (int i = 0; i < nBlocks; ++i)
     {
-      //psi[i].resize(nSplinesPerBlock);
-      //grad[i].resize(nSplinesPerBlock);
-      //hess[i].resize(nSplinesPerBlock);
-
+      for(int j=0; j < nW; j++)
+      {
       //Using the "view-of-views" placement-new construct.
-      new (&psi(i)) vContainer_type("psi_i", nSplinesPerBlock, nW);
-      new (&grad(i)) gContainer_type("grad_i", nSplinesPerBlock, nW);
-      new (&hess(i)) hContainer_type("hess_i", nSplinesPerBlock, nW);
+        new (&psi(i,j)) vContainer_type("psi_i", nSplinesPerBlock);
+        new (&grad(i,j)) gContainer_type("grad_i", nSplinesPerBlock);
+        new (&hess(i,j)) hContainer_type("hess_i", nSplinesPerBlock);
+      }
     }
   }
 
   // fix for general num_splines
-  void set(int nx, int ny, int nz, int num_splines, int nblocks, bool init_random = true)
+  void set(int nw, int nx, int ny, int nz, int num_splines, int nblocks, bool init_random = true)
   {
     nSplines         = num_splines;
     nBlocks          = nblocks;
     nSplinesPerBlock = num_splines / nblocks;
     firstBlock       = 0;
     lastBlock        = nBlocks;
+    nW               = nw;
     if (einsplines.extent(0) == 0)
     {
       Owner = true;
@@ -224,7 +239,7 @@ struct einspline_spo_multi : public SPOSet
           for (int j = 0; j < nSplinesPerBlock; ++j)
           {
             // Generate different coefficients for each orbital
-            myrandom.generate_uniform(coef_data.data(), coef_data.extent(0));
+            myrandom.generate_uniform(coef_data.data(), (nx+3)*(ny+3)*(nz+3));
             myAllocator.setCoefficientsForOneOrbital(j, coef_data, &einsplines(i));
           }
         }
@@ -251,6 +266,37 @@ struct einspline_spo_multi : public SPOSet
     //   auto u = Lattice.toUnit_floor(p);
     //   for (int i = 0; i < nBlocks; ++i)
     //    compute_engine.evaluate_v(&einsplines(i), u[0], u[1], u[2], psi(i).data(), nSplinesPerBlock);
+  }
+  //THis is a list of single electron coordinates for a set of walkers.  r
+  inline void evaluate_v_multi(const Kokkos::View<double*[3]> Rw)
+  {
+    ScopedTimer local_timer(timer);
+    compute_engine.copy_A44();
+    tmp_walker_pos=Rw;
+    is_copy = true;
+    Kokkos::parallel_for(policy_v_multi_parallel_t(nW,1,32),*this);
+    is_copy = false;
+    
+  }
+
+  KOKKOS_INLINE_FUNCTION
+  void operator()(const EvaluateVMultiTag&, const team_v_multi_parallel_t& team) const
+  {
+    int block            = 0;
+    int nw               = team.league_rank();
+    PosType r_raw(tmp_walker_pos(nw,0),tmp_walker_pos(nw,1),tmp_walker_pos(nw,2));
+
+    auto u                  = Lattice.toUnit_floor(r_raw);
+    //printf("walker %d (%f,%f,%f) -> (%f,%f,%f)\n",nw,r_raw(0),r_raw(1),r_raw(2), u(0), u(1), u(2));
+    einsplines(block).coefs = einsplines(block).coefs_view.data();
+    compute_engine.evaluate_v(team,
+                              &einsplines(block),
+                              u[0],
+                              u[1],
+                              u[2],
+                              psi(block,nw).data(),
+                              psi(block,nw).extent(0));
+   
   }
 
   KOKKOS_INLINE_FUNCTION
