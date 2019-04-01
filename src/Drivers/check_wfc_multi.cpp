@@ -53,6 +53,7 @@ void print_help()
   cout << "  -f  specify wavefunction component to check" << '\n';
   cout << "      one of: J1, J2, J3.            default: J2" << '\n';
   cout << "  -g  set the 3D tiling.             default: 1 1 1" << '\n';
+  cout << "  -w  set the number of walkers.     default: 1" << '\n';
   cout << "  -h  print help and exit" << '\n';
   cout << "  -r  set the Rmax.                  default: 1.7" << '\n';
   cout << "  -s  set the random seed.           default: 11" << '\n';
@@ -80,6 +81,10 @@ int main(int argc, char** argv)
     int na    = 1;
     int nb    = 1;
     int nc    = 1;
+
+    //Number of walkers
+    int nW    = 1;
+
     int iseed = 11;
     RealType Rmax(1.7);
     string wfc_name("J2");
@@ -89,7 +94,7 @@ int main(int argc, char** argv)
     int opt;
     while (optind < argc)
     {
-      if ((opt = getopt(argc, argv, "hvVf:g:r:s:")) != -1)
+      if ((opt = getopt(argc, argv, "hvVf:g:w:r:s:")) != -1)
       {
         switch (opt)
         {
@@ -101,6 +106,9 @@ int main(int argc, char** argv)
           break;
         case 'h':
           print_help();
+          break;
+        case 'w':
+          nW = atoi(optarg);
           break;
         case 'r': // rmax
           Rmax = atof(optarg);
@@ -135,7 +143,7 @@ int main(int argc, char** argv)
 
     if (wfc_name != "J1" && wfc_name != "J2" && wfc_name != "J3" && wfc_name != "JeeI")
     {
-      cerr << "Uknown wave funciton component:  " << wfc_name << endl << endl;
+      cerr << "Unknown wave function component:  " << wfc_name << endl << endl;
       print_help();
     }
 
@@ -168,22 +176,39 @@ int main(int argc, char** argv)
 
       // create generator within the thread
       RandomGenerator<RealType> random_th(myPrimes[ip]);
-
-      ParticleSet els;
-      build_els(els, ions, random_th);
-      els.update();
-
+      
+      //We are working with batches of walkers.  Here are the walker
+      //"coordinates".
+      std::vector<ParticleSet> el_list(nW);
+      std::vector<ParticleSet> el_list_ref(nW);
+      std::vector<int> ei_TableIDs(nW);
+      for(int nw=0; nw<nW; nw++)
+      {
+        ParticleSet els;
+        build_els(el_list[nw], ions, random_th);
+        el_list[nw].update();
+        el_list_ref[nw] = el_list[nw];
+        el_list_ref[nw].RSoA = el_list_ref[nw].R;
+        
+        el_list[nw].addTable(el_list[nw],DT_SOA);
+        el_list_ref[nw].addTable(el_list_ref[nw],DT_SOA);
+        ei_TableIDs[nw] = el_list_ref[nw].addTable(ions,DT_SOA);
+      }
+   //   ParticleSet els;
+   //   build_els(els, ions, random_th);
+   //   els.update();
+      int nw=0; //Dummy index for now 
       const int nions = ions.getTotalNum();
-      const int nels  = els.getTotalNum();
+      const int nels  = el_list[nw].getTotalNum();
       const int nels3 = 3 * nels;
 
-      ParticleSet els_ref(els);
-      els_ref.RSoA = els_ref.R;
+  //    ParticleSet els_ref(els);
+ //     els_ref.RSoA = els_ref.R;
 
       // create tables
-      els.addTable(els, DT_SOA);
-      els_ref.addTable(els_ref, DT_SOA);
-      const int ei_TableID = els_ref.addTable(ions, DT_SOA);
+//      els.addTable(els, DT_SOA);
+//      els_ref.addTable(els_ref, DT_SOA);
+///      const int ei_TableID = els_ref.addTable(ions, DT_SOA);
 
       ParticlePos_t delta(nels);
 
@@ -197,39 +222,39 @@ int main(int argc, char** argv)
       if (wfc_name == "J2")
       {
         TwoBodyJastrow<BsplineFunctor<RealType>>* J =
-            new TwoBodyJastrow<BsplineFunctor<RealType>>(els);
-        buildJ2(*J, els.Lattice.WignerSeitzRadius);
+            new TwoBodyJastrow<BsplineFunctor<RealType>>(el_list[nw]);
+        buildJ2(*J, el_list[nw].Lattice.WignerSeitzRadius);
         wfc = dynamic_cast<WaveFunctionComponentPtr>(J);
         cout << "Built J2" << endl;
         miniqmcreference::TwoBodyJastrowRef<BsplineFunctorRef<RealType>>* J_ref =
-            new miniqmcreference::TwoBodyJastrowRef<BsplineFunctorRef<RealType>>(els_ref);
-        buildJ2(*J_ref, els.Lattice.WignerSeitzRadius);
+            new miniqmcreference::TwoBodyJastrowRef<BsplineFunctorRef<RealType>>(el_list_ref[nw]);
+        buildJ2(*J_ref, el_list[nw].Lattice.WignerSeitzRadius);
         wfc_ref = dynamic_cast<WaveFunctionComponentPtr>(J_ref);
         cout << "Built J2_ref" << endl;
       }
       else if (wfc_name == "J1")
       {
         OneBodyJastrow<BsplineFunctor<RealType>>* J =
-            new OneBodyJastrow<BsplineFunctor<RealType>>(ions, els);
-        buildJ1(*J, els.Lattice.WignerSeitzRadius);
+            new OneBodyJastrow<BsplineFunctor<RealType>>(ions, el_list[nw]);
+        buildJ1(*J, el_list[nw].Lattice.WignerSeitzRadius);
         wfc = dynamic_cast<WaveFunctionComponentPtr>(J);
         cout << "Built J1" << endl;
         miniqmcreference::OneBodyJastrowRef<BsplineFunctorRef<RealType>>* J_ref =
-            new miniqmcreference::OneBodyJastrowRef<BsplineFunctorRef<RealType>>(ions, els_ref);
-        buildJ1(*J_ref, els.Lattice.WignerSeitzRadius);
+            new miniqmcreference::OneBodyJastrowRef<BsplineFunctorRef<RealType>>(ions, el_list_ref[nw]);
+        buildJ1(*J_ref, el_list[nw].Lattice.WignerSeitzRadius);
         wfc_ref = dynamic_cast<WaveFunctionComponentPtr>(J_ref);
         cout << "Built J1_ref" << endl;
       }
       else if (wfc_name == "JeeI" || wfc_name == "J3")
       {
         ThreeBodyJastrow<PolynomialFunctor3D>* J =
-            new ThreeBodyJastrow<PolynomialFunctor3D>(ions, els);
-        buildJeeI(*J, els.Lattice.WignerSeitzRadius);
+            new ThreeBodyJastrow<PolynomialFunctor3D>(ions, el_list[nw]);
+        buildJeeI(*J, el_list[nw].Lattice.WignerSeitzRadius);
         wfc = dynamic_cast<WaveFunctionComponentPtr>(J);
         cout << "Built JeeI" << endl;
         miniqmcreference::ThreeBodyJastrowRef<PolynomialFunctor3D>* J_ref =
-            new miniqmcreference::ThreeBodyJastrowRef<PolynomialFunctor3D>(ions, els_ref);
-        buildJeeI(*J_ref, els.Lattice.WignerSeitzRadius);
+            new miniqmcreference::ThreeBodyJastrowRef<PolynomialFunctor3D>(ions, el_list_ref[nw]);
+        buildJeeI(*J_ref, el_list[nw].Lattice.WignerSeitzRadius);
         wfc_ref = dynamic_cast<WaveFunctionComponentPtr>(J_ref);
         cout << "Built JeeI_ref" << endl;
       }
@@ -237,21 +262,21 @@ int main(int argc, char** argv)
       constexpr RealType czero(0);
 
       // compute distance tables
-      els.update();
-      els_ref.update();
+      el_list[nw].update();
+      el_list_ref[nw].update();
 
       {
-        els.G = czero;
-        els.L = czero;
-        wfc->evaluateLog(els, els.G, els.L);
+        el_list[nw].G = czero;
+        el_list[nw].L = czero;
+        wfc->evaluateLog(el_list[nw], el_list[nw].G, el_list[nw].L);
 
-        els_ref.G = czero;
-        els_ref.L = czero;
-        wfc_ref->evaluateLog(els_ref, els_ref.G, els_ref.L);
+        el_list_ref[nw].G = czero;
+        el_list_ref[nw].L = czero;
+        wfc_ref->evaluateLog(el_list_ref[nw], el_list_ref[nw].G, el_list_ref[nw].L);
 
-        cout << "Check values " << wfc->LogValue << " " << els.G[12] << " " << els.L[12] << endl;
-        cout << "Check values ref " << wfc_ref->LogValue << " " << els_ref.G[12] << " "
-             << els_ref.L[12] << endl
+        cout << "Check values " << wfc->LogValue << " " << el_list[nw].G[12] << " " << el_list[nw].L[12] << endl;
+        cout << "Check values ref " << wfc_ref->LogValue << " " << el_list_ref[nw].G[12] << " "
+             << el_list_ref[nw].L[12] << endl
              << endl;
         cout << "evaluateLog::V Error = " << (wfc->LogValue - wfc_ref->LogValue) / nels << endl;
         evaluateLog_v_err += std::fabs((wfc->LogValue - wfc_ref->LogValue) / nels);
@@ -259,7 +284,7 @@ int main(int argc, char** argv)
           double g_err = 0.0;
           for (int iel = 0; iel < nels; ++iel)
           {
-            PosType dr = (els.G[iel] - els_ref.G[iel]);
+            PosType dr = (el_list[nw].G[iel] - el_list_ref[nw].G[iel]);
             RealType d = sqrt(dot(dr, dr));
             g_err += d;
           }
@@ -270,7 +295,7 @@ int main(int argc, char** argv)
           double l_err = 0.0;
           for (int iel = 0; iel < nels; ++iel)
           {
-            l_err += abs(els.L[iel] - els_ref.L[iel]);
+            l_err += abs(el_list[nw].L[iel] - el_list_ref[nw].L[iel]);
           }
           cout << "evaluateLog::L Error = " << l_err / nels << endl;
           evaluateLog_l_err += std::fabs(l_err / nels);
@@ -285,24 +310,24 @@ int main(int argc, char** argv)
 
         for (int iel = 0; iel < nels; ++iel)
         {
-          els.setActive(iel);
-          PosType grad_soa = wfc->evalGrad(els, iel);
+          el_list[nw].setActive(iel);
+          PosType grad_soa = wfc->evalGrad(el_list[nw], iel);
 
-          els_ref.setActive(iel);
-          PosType grad_ref = wfc_ref->evalGrad(els_ref, iel) - grad_soa;
+          el_list_ref[nw].setActive(iel);
+          PosType grad_ref = wfc_ref->evalGrad(el_list_ref[nw], iel) - grad_soa;
           g_eval += sqrt(dot(grad_ref, grad_ref));
 
           PosType dr = sqrttau * delta[iel];
-          els.makeMoveAndCheck(iel, dr);
-          bool good_ref = els_ref.makeMoveAndCheck(iel, dr);
+          el_list[nw].makeMoveAndCheck(iel, dr);
+          bool good_ref = el_list_ref[nw].makeMoveAndCheck(iel, dr);
 
           if (!good_ref)
             continue;
 
           grad_soa       = 0;
-          RealType r_soa = wfc->ratioGrad(els, iel, grad_soa);
+          RealType r_soa = wfc->ratioGrad(el_list[nw], iel, grad_soa);
           grad_ref       = 0;
-          RealType r_ref = wfc_ref->ratioGrad(els_ref, iel, grad_ref);
+          RealType r_ref = wfc_ref->ratioGrad(el_list_ref[nw], iel, grad_ref);
 
           grad_ref -= grad_soa;
           g_ratio += sqrt(dot(grad_ref, grad_ref));
@@ -310,17 +335,17 @@ int main(int argc, char** argv)
 
           if (ur[iel] < r_ref)
           {
-            wfc->acceptMove(els, iel);
-            els.acceptMove(iel);
+            wfc->acceptMove(el_list[nw], iel);
+            el_list[nw].acceptMove(iel);
 
-            wfc_ref->acceptMove(els_ref, iel);
-            els_ref.acceptMove(iel);
+            wfc_ref->acceptMove(el_list_ref[nw], iel);
+            el_list_ref[nw].acceptMove(iel);
             naccepted++;
           }
           else
           {
-            els.rejectMove(iel);
-            els_ref.rejectMove(iel);
+            el_list[nw].rejectMove(iel);
+            el_list_ref[nw].rejectMove(iel);
           }
         }
         cout << "Accepted " << naccepted << "/" << nels << endl;
@@ -332,22 +357,22 @@ int main(int argc, char** argv)
         ratioGrad_r_err += std::fabs(r_ratio / nels);
 
         // nothing to do with J2 but needs for general cases
-        els.donePbyP();
-        els_ref.donePbyP();
+        el_list[nw].donePbyP();
+        el_list_ref[nw].donePbyP();
 
-        els.G = czero;
-        els.L = czero;
-        wfc->evaluateGL(els, els.G, els.L);
+        el_list[nw].G = czero;
+        el_list[nw].L = czero;
+        wfc->evaluateGL(el_list[nw], el_list[nw].G, el_list[nw].L);
 
-        els_ref.G = czero;
-        els_ref.L = czero;
-        wfc_ref->evaluateGL(els_ref, els_ref.G, els_ref.L);
+        el_list_ref[nw].G = czero;
+        el_list_ref[nw].L = czero;
+        wfc_ref->evaluateGL(el_list_ref[nw], el_list_ref[nw].G, el_list_ref[nw].L);
 
         {
           double g_err = 0.0;
           for (int iel = 0; iel < nels; ++iel)
           {
-            PosType dr = (els.G[iel] - els_ref.G[iel]);
+            PosType dr = (el_list[nw].G[iel] - el_list_ref[nw].G[iel]);
             RealType d = sqrt(dot(dr, dr));
             g_err += d;
           }
@@ -358,7 +383,7 @@ int main(int argc, char** argv)
           double l_err = 0.0;
           for (int iel = 0; iel < nels; ++iel)
           {
-            l_err += abs(els.L[iel] - els_ref.L[iel]);
+            l_err += abs(el_list[nw].L[iel] - el_list_ref[nw].L[iel]);
           }
           cout << "evaluteGL::L Error = " << l_err / nels << endl;
           evaluateGL_l_err += std::fabs(l_err / nels);
@@ -368,9 +393,9 @@ int main(int argc, char** argv)
         r_ratio              = 0.0;
         constexpr int nknots = 12;
         int nsphere          = 0;
-        for (int jel = 0; jel < els_ref.getTotalNum(); ++jel)
+        for (int jel = 0; jel < el_list_ref[nw].getTotalNum(); ++jel)
         {
-          const auto& dist = els_ref.DistTables[ei_TableID]->Distances[jel];
+          const auto& dist = el_list_ref[nw].DistTables[ei_TableIDs[nw]]->Distances[jel];
           for (int iat = 0; iat < nions; ++iat)
             if (dist[iat] < Rmax)
             {
@@ -378,13 +403,13 @@ int main(int argc, char** argv)
               random_th.generate_uniform(&delta[0][0], nknots * 3);
               for (int k = 0; k < nknots; ++k)
               {
-                els.makeMoveOnSphere(jel, delta[k]);
-                RealType r_soa = wfc->ratio(els, jel);
-                els.rejectMove(jel);
+                el_list[nw].makeMoveOnSphere(jel, delta[k]);
+                RealType r_soa = wfc->ratio(el_list[nw], jel);
+                el_list[nw].rejectMove(jel);
 
-                els_ref.makeMoveOnSphere(jel, delta[k]);
-                RealType r_ref = wfc_ref->ratio(els_ref, jel);
-                els_ref.rejectMove(jel);
+                el_list_ref[nw].makeMoveOnSphere(jel, delta[k]);
+                RealType r_ref = wfc_ref->ratio(el_list_ref[nw], jel);
+                el_list_ref[nw].rejectMove(jel);
                 r_ratio += abs(r_soa / r_ref - 1);
               }
             }
