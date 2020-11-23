@@ -46,7 +46,7 @@ struct OperatorBase
   //virtual destructor
   virtual ~OperatorBase() {} 
 
-  virtual double evaluate(ParticleSet& P) = 0; //I'll make the return type generic later
+  virtual double evaluate(ParticleSet& P, WaveFunction & wf) = 0; //I'll make the return type generic later
   /** Evaluate the contribution of this component of multiple walkers */
   virtual void mw_evaluate(const std::vector<OperatorBase>& O_list, const std::vector<ParticleSet>& P_list);
 };

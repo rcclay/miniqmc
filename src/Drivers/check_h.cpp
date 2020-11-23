@@ -20,6 +20,7 @@
  */
 #include <iostream>
 #include <QMCHamiltonian/BareKineticEnergy.hpp>
+#include <QMCWaveFunctions/WaveFunction.h>
 #include <Particle/ParticleSet.h>
 
 using namespace qmcplusplus;
@@ -28,9 +29,9 @@ using namespace std;
 int main(int argc, char** argv)
 {
   ParticleSet electrons;
-
+  WaveFunction wfn;
   std::cout<<"Hello world\n";
   BareKineticEnergy bk;
-  bk.evaluate(electrons);
+  bk.evaluate(electrons,wfn);
   return 0;
 }

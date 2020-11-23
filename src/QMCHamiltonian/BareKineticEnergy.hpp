@@ -44,7 +44,7 @@ class BareKineticEnergy : public OperatorBase
     BareKineticEnergy(){};
     ~BareKineticEnergy(){};
 
-    double evaluate(ParticleSet& P) override;
+    double evaluate(ParticleSet& P, WaveFunction& wfn) override;
   private:
    
 };

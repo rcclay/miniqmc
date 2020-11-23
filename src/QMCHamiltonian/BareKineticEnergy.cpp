@@ -27,7 +27,7 @@
 namespace qmcplusplus
 {
 
-double BareKineticEnergy::evaluate(ParticleSet& P)
+double BareKineticEnergy::evaluate(ParticleSet& P, WaveFunction & wfn)
 {
   std::cout<<"Hello from BareKineticEnergy\n";
   return 0.0;
