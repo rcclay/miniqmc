@@ -18,8 +18,19 @@
 /** @file check_spo.cpp
  * @brief Miniapp to check 3D spline implementation against the reference.
  */
+#include <iostream>
+#include <QMCHamiltonian/BareKineticEnergy.hpp>
+#include <Particle/ParticleSet.h>
+
+using namespace qmcplusplus;
+using namespace std;
 
 int main(int argc, char** argv)
 {
+  ParticleSet electrons;
+
+  std::cout<<"Hello world\n";
+  BareKineticEnergy bk;
+  bk.evaluate(electrons);
   return 0;
 }

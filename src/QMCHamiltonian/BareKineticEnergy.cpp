@@ -14,41 +14,23 @@
 ////////////////////////////////////////////////////////////////////////////////
 // -*- C++ -*-
 
-/**
- * @file BareKineticEnergy.h
- * @brief Declaration of BareKineticEnergy class
- *
- */
-
-#ifndef QMCPLUSPLUS_BAREKINETIC_HPP
-#define QMCPLUSPLUS_BAREKINETIC_HPP
-
 #include <Utilities/Configuration.h>
 #include <Utilities/RandomGenerator.h>
 #include <Particle/ParticleSet.h>
 #include "QMCWaveFunctions/SPOSet.h"
 #include <QMCWaveFunctions/WaveFunction.h>
 #include <Particle/ParticleSet_builder.hpp>
-#include <QMCHamiltonian/OperatorBase.hpp>
 #include <Drivers/NonLocalPP.hpp>
+#include <QMCHamiltonian/BareKineticEnergy.hpp>
+#include <vector>
 
 namespace qmcplusplus
 {
-/**
-   * @brief This class evaluates the local kinetic energy given a wavefunction and particle set
-   *
-   */
-class BareKineticEnergy : public OperatorBase 
+
+double BareKineticEnergy::evaluate(ParticleSet& P)
 {
-  public:
-    BareKineticEnergy(){};
-    ~BareKineticEnergy(){};
+  std::cout<<"Hello from BareKineticEnergy\n";
+  return 0.0;
+}
 
-    double evaluate(ParticleSet& P) override;
-  private:
-   
-};
-
-} // namespace qmcplusplus
-
-#endif
+}

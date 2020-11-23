@@ -182,3 +182,5 @@ ENDIF()
   SUBDIRS(QMCWaveFunctions)
 
   SUBDIRS(Drivers)
+
+  SUBDIRS(QMCHamiltonian)

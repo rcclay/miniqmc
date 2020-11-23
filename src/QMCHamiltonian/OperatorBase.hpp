@@ -15,13 +15,13 @@
 // -*- C++ -*-
 
 /**
- * @file BareKineticEnergy.h
- * @brief Declaration of BareKineticEnergy class
+ * @file OperatorBase.hpp
+ * @brief Declaration of OperatorBase base class
  *
  */
 
-#ifndef QMCPLUSPLUS_BAREKINETIC_HPP
-#define QMCPLUSPLUS_BAREKINETIC_HPP
+#ifndef QMCPLUSPLUS_OPERATORBASE_HPP
+#define QMCPLUSPLUS_OPERATORBASE_HPP
 
 #include <Utilities/Configuration.h>
 #include <Utilities/RandomGenerator.h>
@@ -29,26 +29,27 @@
 #include "QMCWaveFunctions/SPOSet.h"
 #include <QMCWaveFunctions/WaveFunction.h>
 #include <Particle/ParticleSet_builder.hpp>
-#include <QMCHamiltonian/OperatorBase.hpp>
 #include <Drivers/NonLocalPP.hpp>
-
+#include <vector>
 namespace qmcplusplus
 {
 /**
    * @brief This class evaluates the local kinetic energy given a wavefunction and particle set
    *
    */
-class BareKineticEnergy : public OperatorBase 
+
+struct OperatorBase
 {
-  public:
-    BareKineticEnergy(){};
-    ~BareKineticEnergy(){};
 
-    double evaluate(ParticleSet& P) override;
-  private:
-   
+  //constructor
+  OperatorBase(){};
+  //virtual destructor
+  virtual ~OperatorBase() {} 
+
+  virtual double evaluate(ParticleSet& P) = 0; //I'll make the return type generic later
+  /** Evaluate the contribution of this component of multiple walkers */
+  virtual void mw_evaluate(const std::vector<OperatorBase>& O_list, const std::vector<ParticleSet>& P_list);
 };
-
 } // namespace qmcplusplus
 
 #endif
