@@ -43,6 +43,9 @@ public:
   using GradVector_t  = Vector<GradType>;
   using GradMatrix_t  = Matrix<GradType>;
 
+  using HessType      = Tensor<ValueType, 3>;
+  using HessMatrix_t  = Matrix<HessType>;
+
   using mValueType       = QMCTraits::QTFull::ValueType;
   using ValueMatrix_hp_t = Matrix<mValueType>;
   using mGradType        = TinyVector<mValueType, DIM>;
@@ -150,8 +153,19 @@ private:
   /// delayed update rank
   int ndelay;
 
+  /// Resize all temporary arrays required for force computation.
+  void resizeScratchObjectsForIonDerivs();
   ///reset the size: with the number of particles and number of orbtials
   void resize(int nel, int morb);
+  
+  /// Used for force computations
+  GradMatrix_t grad_source_psiM, grad_lapl_source_psiM;
+  HessMatrix_t grad_grad_source_psiM;
+
+  GradMatrix_t phi_alpha_Minv, grad_phi_Minv;
+  ValueMatrix_t lapl_phi_Minv;
+  HessMatrix_t grad_phi_alpha_Minv;
+
 };
 
 

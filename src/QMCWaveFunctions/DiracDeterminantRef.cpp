@@ -273,6 +273,18 @@ void DiracDeterminantRef<DU_TYPE>::recompute(ParticleSet& P)
   }
 }
 
+template<typename DU_TYPE>
+void DiracDeterminantRef<DU_TYPE>::resizeScratchObjectsForIonDerivs()
+{
+  grad_source_psiM.resize(NumPtcls, NumOrbitals);
+  grad_lapl_source_psiM.resize(NumPtcls, NumOrbitals);
+  grad_grad_source_psiM.resize(NumPtcls, NumOrbitals);
+  phi_alpha_Minv.resize(NumPtcls, NumOrbitals);
+  grad_phi_Minv.resize(NumPtcls, NumOrbitals);
+  lapl_phi_Minv.resize(NumPtcls, NumOrbitals);
+  grad_phi_alpha_Minv.resize(NumPtcls, NumOrbitals);
+}
+
 typedef QMCTraits::ValueType ValueType;
 typedef QMCTraits::QTFull::ValueType mValueType;
 
