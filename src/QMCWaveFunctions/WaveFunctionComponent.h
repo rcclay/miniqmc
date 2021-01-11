@@ -169,7 +169,28 @@ struct WaveFunctionComponent : public QMCTraits
                           ParticleSet::ParticleGradient_t& G,
                           ParticleSet::ParticleLaplacian_t& L,
                           bool fromscratch = false) = 0;
+ 
+  /** Compute ion gradient of wfn component.
+   * @param P active ParticleSet (electrons)
+   * @param source Ion particle set.  Coordinates to be differentiated.
+   * @param iat the ID of the ion to calculate forces on.
+   * @return dlogpsi/dR_iat.
+   */ 
+  virtual GradType evalGradSource(ParticleSet& P, ParticleSet& source, int iat){return 0.0;};
 
+  /** Compute ion gradient of wfn component.
+   * @param P active ParticleSet (electrons)
+   * @param source Ion particle set.  Coordinates to be differentiated.
+   * @param iat the ID of the ion to calculate forces on.
+   * @param grad_grad Return d/dR_iat grad(logpsi), where grad(logpsi) is the standard electron gradient vector.
+   * @param grad_lapl Return d/dR_iat lapl(logpsi), where lapl(logpsi) is the standard electron laplacian vector.
+   * @return dlogpsi/dR_iat.
+   */ 
+  virtual GradType evalGradSource(ParticleSet& P,
+                          ParticleSet& source,
+                          int iat,
+                          TinyVector<ParticleSet::ParticleGradient_t, OHMMS_DIM>& grad_grad,
+                          TinyVector<ParticleSet::ParticleLaplacian_t, OHMMS_DIM>& lapl_grad) {return 0.0;}; 
   /** complete all the delayed updates, must be called after each substep or step during pbyp move
    */
   virtual void completeUpdates(){};

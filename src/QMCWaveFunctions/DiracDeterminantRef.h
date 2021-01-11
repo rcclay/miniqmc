@@ -88,6 +88,15 @@ public:
 
   void recompute(ParticleSet& P);
 
+  ///evaluate ion gradient of WFN.
+  
+  GradType evalGradSource(ParticleSet& P, ParticleSet& source, int iat) override {return 0.0;};
+
+  GradType evalGradSource(ParticleSet& P,
+                          ParticleSet& source,
+                          int iat,
+                          TinyVector<ParticleSet::ParticleGradient_t, OHMMS_DIM>& grad_grad,
+                          TinyVector<ParticleSet::ParticleLaplacian_t, OHMMS_DIM>& lapl_grad) override {return 0.0;};
   /// psiM(j,i) \f$= \psi_j({\bf r}_i)\f$
   ValueMatrix_t psiM_temp;
 
