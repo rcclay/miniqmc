@@ -40,6 +40,8 @@ public:
   using ValueMatrix_t = Matrix<ValueType>;
   using GradMatrix_t  = Matrix<GradType>;
 
+  using HessType      = Tensor<ValueType, 3>;
+  using HessMatrix_t  = Matrix<HessType>;
   /// return the size of the orbital set
   inline int size() const { return OrbitalSetSize; }
 
@@ -125,6 +127,44 @@ public:
     for (int iw = 0; iw < spo_list.size(); iw++)
       spo_list[iw]->evaluate(*P_list[iw], iat, *psi_v_list[iw], *dpsi_v_list[iw], *d2psi_v_list[iw]);
   }
+
+  /** evaluate the gradients of this single-particle orbital
+   *  for [first,last) target particles with respect to the given source particle
+   * @param P current ParticleSet
+   * @param first starting index of the particles
+   * @param last ending index of the particles
+   * @param iat_src source particle index
+   * @param gradphi gradients
+   *
+   */
+  virtual void evaluateGradSource(const ParticleSet& P,
+                                  int first,
+                                  int last,
+                                  const ParticleSet& source,
+                                  int iat_src,
+                                  GradMatrix_t& gradphi)
+  {}
+
+  /** evaluate the gradients of values, gradients, laplacians of this single-particle orbital
+   *  for [first,last) target particles with respect to the given source particle
+   * @param P current ParticleSet
+   * @param first starting index of the particles
+   * @param last ending index of the particles
+   * @param iat_src source particle index
+   * @param gradphi gradients of values
+   * @param grad_grad_phi gradients of gradients
+   * @param grad_lapl_phi gradients of laplacians
+   *
+   */
+  virtual void evaluateGradSource(const ParticleSet& P,
+                                  int first,
+                                  int last,
+                                  const ParticleSet& source,
+                                  int iat_src,
+                                  GradMatrix_t& grad_phi,
+                                  HessMatrix_t& grad_grad_phi,
+                                  GradMatrix_t& grad_lapl_phi)
+  {};
 
 };
 

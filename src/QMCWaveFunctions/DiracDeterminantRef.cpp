@@ -285,6 +285,25 @@ void DiracDeterminantRef<DU_TYPE>::resizeScratchObjectsForIonDerivs()
   grad_phi_alpha_Minv.resize(NumPtcls, NumOrbitals);
 }
 
+
+template<typename DU_TYPE>
+typename DiracDeterminantRef<DU_TYPE>::GradType DiracDeterminantRef<DU_TYPE>::evalGradSource(ParticleSet& P,
+                                                                                       ParticleSet& source,
+                                                                                       int iat)
+{
+  GradType g(0.0);
+//  if (Phi->hasIonDerivs())
+//  {
+    resizeScratchObjectsForIonDerivs();
+    Phi->evaluateGradSource(P, FirstIndex, LastIndex, source, iat, grad_source_psiM);
+    g = simd::dot(psiM.data(), grad_source_psiM.data(), psiM.size());
+//  }
+
+  return g;
+}
+
+
+
 typedef QMCTraits::ValueType ValueType;
 typedef QMCTraits::QTFull::ValueType mValueType;
 

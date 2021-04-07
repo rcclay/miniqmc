@@ -93,7 +93,7 @@ public:
 
   ///evaluate ion gradient of WFN.
   
-  GradType evalGradSource(ParticleSet& P, ParticleSet& source, int iat) override {return 0.0;};
+  GradType evalGradSource(ParticleSet& P, ParticleSet& source, int iat) override;
 
   GradType evalGradSource(ParticleSet& P,
                           ParticleSet& source,
